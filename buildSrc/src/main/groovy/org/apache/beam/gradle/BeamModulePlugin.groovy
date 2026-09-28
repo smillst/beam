@@ -1362,12 +1362,13 @@ class BeamModulePlugin implements Plugin<Project> {
           "-AnoWarnMemoryConstraints",
           // TODO: fix all the Nullness Checker warnings and re-enable.
           // "-AsuppressWarnings=annotation.not.completed,keyfor",
-          "-AsuppressWarnings=all",
+          "-AsuppressWarnings=allcheckers",
           // The following line should only be used when testing the Checker Framework.
           "-AconvertTypeArgInferenceCrashToWarning=false",
           "-ArequirePrefixInWarningSuppressions",
           "-AwarnRedundantAnnotations",
-          "-AwarnUnneededSuppressions",
+          // With -AsuppressWarnings=allcheckers, every @SuppressWarnings is unneeded.
+          // "-AwarnUnneededSuppressions",
         ]
       }
       project.configurations.all {
