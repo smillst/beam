@@ -1365,9 +1365,9 @@ class BeamModulePlugin implements Plugin<Project> {
           "-AsuppressWarnings=allcheckers",
           // The following line should only be used when testing the Checker Framework.
           "-AconvertTypeArgInferenceCrashToWarning=false",
-          "-ArequirePrefixInWarningSuppressions",
-          "-AwarnRedundantAnnotations",
-          // With -AsuppressWarnings=allcheckers, every @SuppressWarnings is unneeded.
+          // TODO: Add the following
+          // "-ArequirePrefixInWarningSuppressions",
+          // "-AwarnRedundantAnnotations",
           // "-AwarnUnneededSuppressions",
         ]
       }
