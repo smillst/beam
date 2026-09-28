@@ -27,7 +27,10 @@ applyJavaNature(
   publish: false,
   disableLintWarnings: ['requires-transitive-automatic', 'requires-automatic'],
   enableSpotbugs: false,
-  requireJavaVersion: JavaVersion.VERSION_11
+  requireJavaVersion: JavaVersion.VERSION_11,
+  // The Checker Framework's annotated JDK is not on the module path of this JPMS
+  // module, so it cannot load its own qualifiers when compiling this project.
+  skipCheckerFramework: true
 )
 provideIntegrationTestingDependencies()
 enableJavaPerformanceTesting()

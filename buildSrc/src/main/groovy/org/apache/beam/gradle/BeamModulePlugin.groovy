@@ -118,6 +118,15 @@ class BeamModulePlugin implements Plugin<Project> {
     /** Classes triggering Checker failures. A map from class name to the bug filed against checkerframework. */
     Map<String, String> classesTriggerCheckerBugs = [:]
 
+    /**
+     * Controls whether the Checker Framework is skipped for this project. This must be set here
+     * (rather than with a `checkerFramework { skipCheckerFramework = true }` block in the
+     * subproject's build.gradle) because the Checker Framework plugin locks in its skip decision
+     * for a JavaCompile task the first time that task is realized, which happens inside
+     * applyJavaNature -- before the rest of the subproject's build.gradle runs.
+     */
+    boolean skipCheckerFramework = false
+
     /** Controls whether the dependency analysis plugin is enabled. */
     boolean enableStrictDependencies = true
 
@@ -614,7 +623,7 @@ class BeamModulePlugin implements Plugin<Project> {
     def aws_java_sdk2_version = "2.20.162"
     def cassandra_driver_version = "3.10.2"
     def cdap_version = "6.11.4"
-    def checkerframework_version = "3.42.0"
+    def checkerframework_version = "4.3.0-SNAPSHOT"
     def classgraph_version = "4.8.192"
     def delta_lake_version = "4.2.0"
     def dbcp2_version = "2.9.0"
@@ -1318,9 +1327,23 @@ class BeamModulePlugin implements Plugin<Project> {
           'org.checkerframework.checker.nullness.NullnessChecker'
         ]
 
-        // Only skip checkerframework if explicitly requested
-        skipCheckerFramework = project.hasProperty('enableCheckerFramework') &&
-            !parseBooleanProperty(project, 'enableCheckerFramework')
+        // Checker Framework version to use. Required as of plugin version 1.x.
+        version = checkerframework_version
+
+        // Only skip checkerframework if explicitly requested, via the
+        // `skipCheckerFramework` configuration option or the
+        // `enableCheckerFramework` project property. Always skip it for
+        // JMH benchmark modules: it's slow, and it often raises erroneous errors
+        // because we don't have checker annotations for generated code and test
+        // libraries. This must be decided here (rather than later, in the
+        // `enableJmh` block below) because the Checker Framework plugin locks in
+        // its skip decision for a JavaCompile task the first time that task is
+        // realized, which can happen as soon as `project.tasks.withType(JavaCompile) { ... }`
+        // runs further down in this method -- well before the `enableJmh` block.
+        skipCheckerFramework = configuration.skipCheckerFramework ||
+            configuration.enableJmh ||
+            (project.hasProperty('enableCheckerFramework') &&
+                !parseBooleanProperty(project, 'enableCheckerFramework'))
 
         // Always exclude checkerframework on tests. It's slow, and it often
         // raises erroneous error because we don't have checker annotations for
@@ -1334,14 +1357,14 @@ class BeamModulePlugin implements Plugin<Project> {
           "-AskipUses=${skipUsesCombinedRegex}",
           "-AnoWarnMemoryConstraints",
           "-AsuppressWarnings=annotation.not.completed,keyfor",
+          "-AconvertTypeArgInferenceCrashToWarning=false",
+          "-ArequirePrefixInWarningSuppressions",
+          "-AwarnRedundantAnnotations",
+          "-AwarnUnneededSuppressions",
         ]
-
-        project.dependencies {
-          checkerFramework("org.checkerframework:checker:$checkerframework_version")
-        }
-        project.configurations.all {
-          it.exclude(group:"org.checkerframework", module:"jdk8")
-        }
+      }
+      project.configurations.all {
+        it.exclude(group:"org.checkerframework", module:"jdk8")
       }
 
       // Ban these dependencies from all configurations
@@ -1872,18 +1895,6 @@ class BeamModulePlugin implements Plugin<Project> {
           runtimeOnly it.project(path: ":sdks:java:testing:test-utils")
           annotationProcessor "org.openjdk.jmh:jmh-generator-annprocess:$jmh_version"
           implementation project.library.java.jmh_core
-        }
-
-        project.compileJava {
-          // Always exclude checkerframework on JMH generated code. It's slow,
-          // and it often raises erroneous error because we don't have checker
-          // annotations for generated code and test libraries.
-          //
-          // Consider re-enabling if we can get annotations for the generated
-          // code and test libraries we use.
-          checkerFramework {
-            skipCheckerFramework = true
-          }
         }
 
         project.tasks.register("jmh", JavaExec)  {

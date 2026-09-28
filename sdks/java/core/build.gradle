@@ -21,13 +21,10 @@ plugins { id 'org.apache.beam.module' }
 def antlr_version = "4.7"
 
 applyJavaNature(
-  automaticModuleName: 'org.apache.beam.sdk',
-  classesTriggerCheckerBugs: [
-    'DoFnTester': 'https://github.com/typetools/checker-framework/issues/3776',
-    'FileIO': 'https://github.com/typetools/checker-framework/issues/6388',
-    'MergingActiveWindowSetTest': 'https://github.com/typetools/checker-framework/issues/3776',
-    'WindowFnTestUtils': 'https://github.com/typetools/checker-framework/issues/3776',
+  generatedClassPatterns: [
+    /^org\.apache\.beam\.sdk\.schemas\.parser\.generated.*/,
   ],
+  automaticModuleName: 'org.apache.beam.sdk',
   shadowClosure: {
     dependencies {
       include(dependency(library.java.commons_compress))

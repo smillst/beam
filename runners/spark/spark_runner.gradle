@@ -36,13 +36,6 @@ applyJavaNature(
   automaticModuleName: 'org.apache.beam.runners.spark',
   archivesBaseName: (project.hasProperty('archives_base_name') ? archives_base_name : archivesBaseName),
   exportJavadoc: (project.hasProperty('exportJavadoc') ? exportJavadoc : true),
-  classesTriggerCheckerBugs: [
-    'Aggregators': 'https://github.com/typetools/checker-framework/issues/6388#issuecomment-1885532351',
-    'SparkAssignWindowFn': 'https://github.com/typetools/checker-framework/issues/3793',
-    'SparkCombineFn'     : 'https://github.com/typetools/checker-framework/issues/3793',
-    'WindowingHelpers'   : 'https://github.com/typetools/checker-framework/issues/3793',
-    'WindowAssignTranslatorBatch': 'https://github.com/typetools/checker-framework/issues/6388#issuecomment-1885532351',
-  ],
 )
 
 description = "Apache Beam :: Runners :: Spark $spark_version"
