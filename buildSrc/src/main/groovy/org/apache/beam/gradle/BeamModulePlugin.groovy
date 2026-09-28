@@ -1363,6 +1363,7 @@ class BeamModulePlugin implements Plugin<Project> {
           // TODO: fix all the Nullness Checker warnings and re-enable.
           // "-AsuppressWarnings=annotation.not.completed,keyfor",
           "-AsuppressWarnings=all",
+          // The following line should only be used when testing the Checker Framework.
           "-AconvertTypeArgInferenceCrashToWarning=false",
           "-ArequirePrefixInWarningSuppressions",
           "-AwarnRedundantAnnotations",
