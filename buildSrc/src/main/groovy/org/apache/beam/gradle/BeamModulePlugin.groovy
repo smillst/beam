@@ -1069,11 +1069,6 @@ class BeamModulePlugin implements Plugin<Project> {
         // Disabling checks since this property is only used for tests
         options.errorprone.errorproneArgs.add("-XepDisableAllChecks")
         options.forkOptions.jvmArgs += errorProneAddModuleOpts.collect { '-J' + it }
-        // TODO(https://github.com/apache/beam/issues/28963)
-        // upgrade checkerFramework to enable it in Java 21+
-        project.checkerFramework {
-          skipCheckerFramework = true
-        }
       } else {
         throw new GradleException("Unknown Java Version ${ver} for setting additional java options")
       }
@@ -1344,8 +1339,13 @@ class BeamModulePlugin implements Plugin<Project> {
         // its skip decision for a JavaCompile task the first time that task is
         // realized, which can happen as soon as `project.tasks.withType(JavaCompile) { ... }`
         // runs further down in this method -- well before the `enableJmh` block.
+        // For the same reason, the skip for compilation forked to Java 21+ is decided here rather
+        // than in setJavaVerOptions.
+        // TODO(https://github.com/apache/beam/issues/28963)
+        // upgrade checkerFramework to enable it in Java 21+
         skipCheckerFramework = configuration.skipCheckerFramework ||
             configuration.enableJmh ||
+            forkJavaVersion in ['21', '25'] ||
             (project.hasProperty('enableCheckerFramework') &&
                 !parseBooleanProperty(project, 'enableCheckerFramework'))
 
@@ -1373,6 +1373,13 @@ class BeamModulePlugin implements Plugin<Project> {
       }
       project.configurations.all {
         it.exclude(group:"org.checkerframework", module:"jdk8")
+        // With -PcfVersion=local, the Checker Framework plugin adds the local checker-qual.jar to
+        // every implementation configuration. Exclude the Maven checker-qual, whether declared
+        // directly or pulled in transitively (e.g., by Guava), so that the classpath does not mix
+        // qualifiers from two versions.
+        if (project.findProperty('cfVersion') == 'local') {
+          it.exclude(group:"org.checkerframework", module:"checker-qual")
+        }
       }
 
       // Ban these dependencies from all configurations
@@ -1526,8 +1533,7 @@ class BeamModulePlugin implements Plugin<Project> {
         // This contains many improved annotations beyond javax.annotations for enhanced static checking
         // of the codebase. It is runtime so users can also take advantage of them. The annotations themselves
         // are MIT licensed (checkerframework is GPL and cannot be distributed)
-        // With -PcfVersion=local, the Checker Framework plugin adds the local checker-qual.jar to
-        // every implementation configuration; do not also put a Maven copy on the classpath.
+        // With -PcfVersion=local, the local checker-qual.jar is used instead; see the exclusion above.
         if (project.findProperty('cfVersion') != 'local') {
           implementation "org.checkerframework:checker-qual:$checkerframework_version"
         }

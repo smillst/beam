@@ -23,9 +23,10 @@
 set -e
 set -o pipefail
 
-# Shell glob patterns, matched against Gradle project paths.  part1 is the Dataflow runner and the
-# chain of modules it depends on (:sdks:java:core, :sdks:java:io:google-cloud-platform), which must
-# be type-checked one after another and so bounds the time of any group that contains them.  With
+# Patterns matched against Gradle project paths, in which `*` matches any sequence of characters.
+# part1 is the Dataflow runner and the chain of modules it depends on (:sdks:java:core,
+# :sdks:java:io:google-cloud-platform), which must be type-checked one after another and so bounds
+# the time of any group that contains them.  With
 # 4 Gradle workers, part1 takes about 36 minutes and part2 about 31 minutes.  More groups would
 # not be faster, because every group type-checks :sdks:java:core and part1's chain cannot be split.
 PART1=(
@@ -56,71 +57,79 @@ if [ ! -f "${CHECKERFRAMEWORK}/checker/dist/checker.jar" ]; then
 fi
 export CHECKERFRAMEWORK
 
-GRADLE_ARGS=(-PcfVersion=local --console=plain)
+# Every project must be configured to discover which ones run the Checker Framework.
+GRADLE_ARGS=(-PcfVersion=local --console=plain --no-configure-on-demand)
 
-# Prints the path of every project that runs the Checker Framework, one per line.
-list_cf_projects() {
-  local init_script
-  init_script="$(mktemp -t beam-list-cf-projects.XXXXXX)"
-  cat > "$init_script" << 'EOF'
-allprojects {
-  afterEvaluate { p ->
+# The init script selects the projects in $GROUP.  Whether a project runs the Checker Framework is
+# known only after the project is configured, so the selection is done in the same Gradle
+# invocation that type-checks, which avoids configuring Beam twice.  It registers a
+# typecheckCheckerFramework task in the root project.  For GROUP=list, the task prints each selected
+# project's group and compileJava task; otherwise, it depends on each selected project's
+# compileJava task.
+INIT_SCRIPT="$(mktemp -t beam-typecheck.XXXXXX)"
+# shellcheck disable=SC2064 # $INIT_SCRIPT is intentionally expanded now.
+trap "rm -f '$INIT_SCRIPT'" EXIT
+cat > "$INIT_SCRIPT" << 'EOF'
+import java.util.regex.Pattern
+
+// Converts a pattern in which `*` matches any sequence of characters to a regex.
+def globToRegex = { String glob ->
+  Pattern.compile(glob.split(/\*/, -1).collect { Pattern.quote(it) }.join('.*'))
+}
+
+gradle.projectsEvaluated {
+  // Gradle also applies this init script to buildSrc, a nested build.
+  if (gradle.parent != null) {
+    return
+  }
+  def group = gradle.startParameter.projectProperties['typecheckGroup']
+  def part1 = gradle.startParameter.projectProperties['typecheckPart1'].split(',').collect(globToRegex)
+  def groupOf = { String path -> part1.any { it.matcher(path).matches() } ? 'part1' : 'part2' }
+
+  def selected = []
+  def disabled = []
+  gradle.rootProject.allprojects.each { p ->
     if (p.plugins.hasPlugin('org.checkerframework')
         && !p.extensions.getByName('checkerFramework').skipCheckerFramework.get()) {
-      println "CF-PROJECT ${p.path}"
+      def compileJava = p.tasks.findByName('compileJava')
+      if (compileJava == null) {
+        return
+      }
+      // BeamModulePlugin disables every task of a project that requires a newer Java version than
+      // is available.
+      if (!compileJava.enabled) {
+        disabled << p.path
+      } else if (group == 'list' || group == 'all' || groupOf(p.path) == group) {
+        selected << p.path
+      }
+    }
+  }
+  selected.sort()
+
+  if (!disabled.isEmpty()) {
+    System.err.println('typecheck.sh: warning: not type-checking these projects, which require a newer Java version:')
+    disabled.sort().each { System.err.println("  ${it}") }
+  }
+  if (selected.isEmpty()) {
+    throw new GradleException("typecheck.sh: found no projects that run the Checker Framework in group ${group}.")
+  }
+
+  gradle.rootProject.tasks.register('typecheckCheckerFramework') {
+    if (group == 'list') {
+      doLast {
+        selected.each { println "${groupOf(it)} ${it}:compileJava" }
+      }
+    } else {
+      dependsOn(selected.collect { "${it}:compileJava" })
+      println "Type-checking ${selected.size()} modules in group ${group}."
     }
   }
 }
 EOF
-  ./gradlew "${GRADLE_ARGS[@]}" -q -I "$init_script" help | sed -n 's/^CF-PROJECT //p' | sort
-  rm -f "$init_script"
-}
 
-# Returns 0 if project path $1 matches any of the remaining arguments, which are glob patterns.
-matches_any() {
-  local project="$1"
-  shift
-  local pattern
-  for pattern in "$@"; do
-    # shellcheck disable=SC2053 # $pattern is intentionally unquoted so that it is a glob.
-    if [[ "$project" == $pattern ]]; then
-      return 0
-    fi
-  done
-  return 1
-}
-
-# Prints the group (part1 or part2) that contains project path $1.
-group_of() {
-  if matches_any "$1" "${PART1[@]}"; then
-    echo part1
-  else
-    echo part2
-  fi
-}
-
-PROJECTS=()
-while IFS= read -r project; do
-  PROJECTS+=("$project")
-done < <(list_cf_projects)
-if [ ${#PROJECTS[@]} -eq 0 ]; then
-  echo "$0: found no projects that run the Checker Framework." >&2
-  exit 1
-fi
-
+GRADLE_ARGS+=(-I "$INIT_SCRIPT" -PtypecheckGroup="$GROUP" -PtypecheckPart1="$(IFS=,; echo "${PART1[*]}")")
 if [ "$GROUP" = list ]; then
-  for project in "${PROJECTS[@]}"; do
-    echo "$(group_of "$project") $project:compileJava"
-  done
-  exit 0
+  ./gradlew "${GRADLE_ARGS[@]}" -q typecheckCheckerFramework
+else
+  ./gradlew "${GRADLE_ARGS[@]}" --continue typecheckCheckerFramework
 fi
-
-TASKS=()
-for project in "${PROJECTS[@]}"; do
-  if [ "$GROUP" = all ] || [ "$(group_of "$project")" = "$GROUP" ]; then
-    TASKS+=("$project:compileJava")
-  fi
-done
-
-echo "Type-checking ${#TASKS[@]} modules in group $GROUP."
-./gradlew "${GRADLE_ARGS[@]}" --continue "${TASKS[@]}"

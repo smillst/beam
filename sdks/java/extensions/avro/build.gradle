@@ -121,8 +121,13 @@ avroVersions.each { k, v ->
   }
 
   "compileAvro${k}Java" {
-    checkerFramework {
-      skipCheckerFramework = true
+    // Do not run the Checker Framework on these test sources. The Checker Framework plugin has
+    // already configured this task when it was realized, before this block runs, so disable it for
+    // this task (which the plugin checks again when the task executes) and drop the -A options it
+    // added, which -Werror would otherwise turn into "not recognized by any processor" errors.
+    options.checkerFrameworkCompile.enabled = false
+    options.compilerArgumentProviders.removeIf {
+      it.getClass().simpleName == 'CheckerFrameworkCompilerArgumentProvider'
     }
   }
 
