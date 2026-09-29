@@ -60,6 +60,37 @@ export CHECKERFRAMEWORK
 # Every project must be configured to discover which ones run the Checker Framework.
 GRADLE_ARGS=(-PcfVersion=local --console=plain --no-configure-on-demand)
 
+# Runs "./gradlew" with the arguments after the first, retrying if the failure looks like a
+# transient network problem, such as HTTP status code 429 or 403, which Maven Central returns when
+# it is throttling a client.  The pattern does not match Gradle's "Could not resolve", so a
+# missing dependency or a Checker Framework crash is not retried.  The first argument is a
+# space-separated list of the delays, in seconds, before successive retries; its last element
+# must be 0, which means "do not retry again".
+gradle_retry() {
+  local log status delay
+  local -a delays
+  read -r -a delays <<< "$1"
+  shift
+  log="$(mktemp -t beam-gradle-retry.XXXXXX)"
+  for delay in "${delays[@]}"; do
+    set +e
+    ./gradlew "$@" 2>&1 | tee "$log"
+    status="${PIPESTATUS[0]}"
+    set -e
+    if [ "$status" -eq 0 ]; then
+      rm -f "$log"
+      return 0
+    fi
+    if [ "$delay" -eq 0 ] \
+      || ! grep -q -E '(status|response) code:? (403|429|5[0-9][0-9])|HTTP Status:? (403|429|5[0-9][0-9])|Connect(ion)? timed out|Connection (reset|refused)|Read timed out|Network is unreachable|UnknownHostException|Temporary failure in name resolution|Premature end of Content-Length|Remote host terminated the handshake' "$log"; then
+      rm -f "$log"
+      return "$status"
+    fi
+    echo "$0: \"./gradlew $*\" failed for an apparent network reason; retrying in ${delay} seconds." >&2
+    sleep "$delay"
+  done
+}
+
 # The init script selects the projects in $GROUP.  Whether a project runs the Checker Framework is
 # known only after the project is configured, so the selection is done in the same Gradle
 # invocation that type-checks, which avoids configuring Beam twice.  It registers a
@@ -129,7 +160,9 @@ EOF
 
 GRADLE_ARGS+=(-I "$INIT_SCRIPT" -PtypecheckGroup="$GROUP" -PtypecheckPart1="$(IFS=,; echo "${PART1[*]}")")
 if [ "$GROUP" = list ]; then
-  ./gradlew "${GRADLE_ARGS[@]}" -q typecheckCheckerFramework
+  gradle_retry "60 300 0" "${GRADLE_ARGS[@]}" -q typecheckCheckerFramework
 else
-  ./gradlew "${GRADLE_ARGS[@]}" --continue typecheckCheckerFramework
+  # Dependencies are resolved as the compileJava tasks run.  A retry re-runs only the tasks that did
+  # not succeed, so it retries once:  a longer sequence could exceed the CI job's time limit.
+  gradle_retry "60 0" "${GRADLE_ARGS[@]}" --continue typecheckCheckerFramework
 fi
