@@ -103,13 +103,13 @@ trap "rm -f '$INIT_SCRIPT'" EXIT
 cat > "$INIT_SCRIPT" << 'EOF'
 import java.util.regex.Pattern
 
-// Converts a pattern in which `*` matches any sequence of characters to a regex.
+// Converts a glob (in which `*` matches any sequence of characters) to a regex.
 def globToRegex = { String glob ->
   Pattern.compile(glob.split(/\*/, -1).collect { Pattern.quote(it) }.join('.*'))
 }
 
 gradle.projectsEvaluated {
-  // Gradle also applies this init script to buildSrc, a nested build.
+  // Don't do anything when Gradle applies this init script to buildSrc, a nested build.
   if (gradle.parent != null) {
     return
   }
