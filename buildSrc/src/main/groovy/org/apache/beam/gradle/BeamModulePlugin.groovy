@@ -623,10 +623,8 @@ class BeamModulePlugin implements Plugin<Project> {
     def aws_java_sdk2_version = "2.20.162"
     def cassandra_driver_version = "3.10.2"
     def cdap_version = "6.11.4"
-    // A released version, so that the build does not require publishToMavenLocal. To use a
-    // locally built Checker Framework instead, pass -PcfVersion=local and set CHECKERFRAMEWORK;
-    // the Checker Framework plugin then uses $CHECKERFRAMEWORK/checker/dist/checker.jar and
-    // checker-qual.jar.
+    // To use a locally built Checker Framework instead, pass -PcfVersion=local; the Checker
+    // Framework plugin then uses $CHECKERFRAMEWORK/checker/dist/checker.jar and checker-qual.jar.
     def checkerframework_version = "4.2.3"
     def classgraph_version = "4.8.192"
     def delta_lake_version = "4.2.0"
@@ -1326,7 +1324,6 @@ class BeamModulePlugin implements Plugin<Project> {
           'org.checkerframework.checker.nullness.NullnessChecker'
         ]
 
-        // Checker Framework version to use. Required as of plugin version 1.x.
         version = checkerframework_version
 
         // Only skip checkerframework if explicitly requested, via the
