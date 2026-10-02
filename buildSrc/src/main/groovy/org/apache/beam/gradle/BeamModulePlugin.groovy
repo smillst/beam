@@ -1336,15 +1336,13 @@ class BeamModulePlugin implements Plugin<Project> {
         // its skip decision for a JavaCompile task the first time that task is
         // realized, which can happen as soon as `project.tasks.withType(JavaCompile) { ... }`
         // runs further down in this method -- well before the `enableJmh` block.
-        // For the same reason, the skip for compilation forked to Java 21+ is decided here rather
+        // For the same reason, the skip for compilation forked to Java 17+ is decided here rather
         // than in setJavaVerOptions.
-        // TODO(https://github.com/apache/beam/issues/28963)
-        // upgrade checkerFramework to enable it in Java 21+
         skipCheckerFramework = configuration.skipCheckerFramework ||
+          (project.hasProperty('enableCheckerFramework') &&
+            !parseBooleanProperty(project, 'enableCheckerFramework')) ||
             configuration.enableJmh ||
-            forkJavaVersion in ['21', '25'] ||
-            (project.hasProperty('enableCheckerFramework') &&
-                !parseBooleanProperty(project, 'enableCheckerFramework'))
+            (forkJavaVersion?.isInteger() && forkJavaVersion.toInteger() >= 17)
 
         // Always exclude checkerframework on tests. It's slow, and it often
         // raises erroneous error because we don't have checker annotations for
