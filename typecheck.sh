@@ -113,8 +113,13 @@ gradle.projectsEvaluated {
   if (gradle.parent != null) {
     return
   }
+  // The group to type-check: part1, part2, all, or list.  The script passes it as -PtypecheckGroup.
   def group = gradle.startParameter.projectProperties['typecheckGroup']
+  // The script passes the PART1 array as -PtypecheckPart1, joined by commas.  `part1` is a list of
+  // regexes, one per pattern in PART1.
   def part1 = gradle.startParameter.projectProperties['typecheckPart1'].split(',').collect(globToRegex)
+  // Returns the group that contains the project whose path is `path`:  part1 if any pattern in
+  // PART1 matches the path, and part2 otherwise.
   def groupOf = { String path -> part1.any { it.matcher(path).matches() } ? 'part1' : 'part2' }
 
   def selected = []
