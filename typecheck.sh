@@ -51,11 +51,13 @@ cd "$SCRIPT_DIR"
 if [ -z "${CHECKERFRAMEWORK}" ]; then
   CHECKERFRAMEWORK="$(cd .. && pwd -P)/checker-framework"
 fi
-if [ ! -f "${CHECKERFRAMEWORK}/checker/dist/checker.jar" ]; then
-  echo "$0: ${CHECKERFRAMEWORK}/checker/dist/checker.jar does not exist." >&2
-  echo "Set CHECKERFRAMEWORK and run \`./gradlew assembleForJavac\` there." >&2
-  exit 1
-fi
+for jar in checker.jar checker-qual.jar; do
+  if [ ! -f "${CHECKERFRAMEWORK}/checker/dist/${jar}" ]; then
+    echo "$0: ${CHECKERFRAMEWORK}/checker/dist/${jar} does not exist." >&2
+    echo "Set CHECKERFRAMEWORK and run \`./gradlew assembleForJavac\` there." >&2
+    exit 1
+  fi
+done
 export CHECKERFRAMEWORK
 
 # Every project must be configured to discover which ones run the Checker Framework.

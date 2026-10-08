@@ -26,11 +26,16 @@ gradle.projectsEvaluated {
   // PART1 matches the path, and part2 otherwise.
   def groupOf = { String path -> part1.any { it.matcher(path).matches() } ? 'part1' : 'part2' }
 
+  // The Checker Framework plugin skips every project if -PskipCheckerFramework is true.
+  if (Boolean.parseBoolean(gradle.startParameter.projectProperties['skipCheckerFramework'])) {
+    throw new GradleException('typecheck.sh: -PskipCheckerFramework=true disables type-checking.')
+  }
+
   def selected = []
   def disabled = []
   gradle.rootProject.allprojects.each { p ->
     if (p.plugins.hasPlugin('org.checkerframework')
-        && !p.extensions.getByName('checkerFramework').skipCheckerFramework.get()) {
+        && !p.extensions.getByName('checkerFramework').skipCheckerFramework.getOrElse(false)) {
       def compileJava = p.tasks.findByName('compileJava')
       if (compileJava == null) {
         return
