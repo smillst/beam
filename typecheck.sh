@@ -11,7 +11,7 @@
 #
 # The modules are every Java project that applies the Checker Framework Gradle plugin without
 # skipping it.  They are discovered at run time, so modules that are added to Beam are type-checked
-# without changes to this script: any module that no pattern in PART1 matches is in part2.
+# without changes to this script: 
 #
 # Environment:
 #   CHECKERFRAMEWORK  a Checker Framework checkout in which `./gradlew assembleForJavac` has run.
@@ -26,9 +26,10 @@ set -o pipefail
 # Patterns matched against Gradle project paths, in which `*` matches any sequence of characters.
 # part1 is the Dataflow runner and the chain of modules it depends on (:sdks:java:core,
 # :sdks:java:io:google-cloud-platform), which must be type-checked one after another and so bounds
-# the time of any group that contains them.  With
-# 4 Gradle workers, part1 takes about 36 minutes and part2 about 31 minutes.  More groups would
-# not be faster, because every group type-checks :sdks:java:core and part1's chain cannot be split.
+# the time of any group that contains them.  Any module that no pattern in PART1 matches is in
+# part2.  With 4 Gradle workers, part1 takes about 36 minutes and part2 about 31 minutes.  More
+# groups would not be faster, because every group type-checks :sdks:java:core and part1's chain
+# cannot be split.
 PART1=(
   ':sdks:java:core'
   ':sdks:java:io:google-cloud-platform'
