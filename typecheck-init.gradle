@@ -1,0 +1,67 @@
+// A Gradle init script, used by typecheck.sh, that selects the projects in a group.  Whether a
+// project runs the Checker Framework is known only after the project is configured, so this init
+// script selects projects in the same Gradle invocation that type-checks them, which avoids
+// configuring Beam twice.  It registers a typecheckCheckerFramework task in the root project.  For
+// group `list`, the task prints each selected project's group and compileJava task; otherwise, it
+// depends on each selected project's compileJava task.
+
+import java.util.regex.Pattern
+
+// Converts a glob (in which `*` matches any sequence of characters) to a regex.
+def globToRegex = { String glob ->
+  Pattern.compile(glob.split(/\*/, -1).collect { Pattern.quote(it) }.join('.*'))
+}
+
+gradle.projectsEvaluated {
+  // Don't do anything when Gradle applies this init script to buildSrc, a nested build.
+  if (gradle.parent != null) {
+    return
+  }
+  // The group to type-check: part1, part2, all, or list.  typecheck.sh passes it as -PtypecheckGroup.
+  def group = gradle.startParameter.projectProperties['typecheckGroup']
+  // typecheck.sh passes its PART1 array as -PtypecheckPart1, joined by commas.  `part1` is a list of
+  // regexes, one per pattern in PART1.
+  def part1 = gradle.startParameter.projectProperties['typecheckPart1'].split(',').collect(globToRegex)
+  // Returns the group that contains the project whose path is `path`:  part1 if any pattern in
+  // PART1 matches the path, and part2 otherwise.
+  def groupOf = { String path -> part1.any { it.matcher(path).matches() } ? 'part1' : 'part2' }
+
+  def selected = []
+  def disabled = []
+  gradle.rootProject.allprojects.each { p ->
+    if (p.plugins.hasPlugin('org.checkerframework')
+        && !p.extensions.getByName('checkerFramework').skipCheckerFramework.get()) {
+      def compileJava = p.tasks.findByName('compileJava')
+      if (compileJava == null) {
+        return
+      }
+      // BeamModulePlugin disables every task of a project that requires a newer Java version than
+      // is available.
+      if (!compileJava.enabled) {
+        disabled << p.path
+      } else if (group == 'list' || group == 'all' || groupOf(p.path) == group) {
+        selected << p.path
+      }
+    }
+  }
+  selected.sort()
+
+  if (!disabled.isEmpty()) {
+    System.err.println('typecheck.sh: warning: not type-checking these projects, which require a newer Java version:')
+    disabled.sort().each { System.err.println("  ${it}") }
+  }
+  if (selected.isEmpty()) {
+    throw new GradleException("typecheck.sh: found no projects that run the Checker Framework in group ${group}.")
+  }
+
+  gradle.rootProject.tasks.register('typecheckCheckerFramework') {
+    if (group == 'list') {
+      doLast {
+        selected.each { println "${groupOf(it)} ${it}:compileJava" }
+      }
+    } else {
+      dependsOn(selected.collect { "${it}:compileJava" })
+      println "Type-checking ${selected.size()} modules in group ${group}."
+    }
+  }
+}
