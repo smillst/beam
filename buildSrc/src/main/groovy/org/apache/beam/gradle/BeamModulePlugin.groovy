@@ -122,8 +122,8 @@ class BeamModulePlugin implements Plugin<Project> {
      * Controls whether the Checker Framework is skipped for this project. This must be set here
      * (rather than with a `checkerFramework { skipCheckerFramework = true }` block in the
      * subproject's build.gradle) because the Checker Framework plugin locks in its skip decision
-     * for a JavaCompile task the first time that task is realized, which happens inside
-     * applyJavaNature -- before the rest of the subproject's build.gradle runs.
+     * for a JavaCompile task the first time that task is realized (created and configured), which
+     * happens inside applyJavaNature -- before the rest of the subproject's build.gradle runs.
      */
     boolean skipCheckerFramework = false
 
@@ -623,8 +623,6 @@ class BeamModulePlugin implements Plugin<Project> {
     def aws_java_sdk2_version = "2.20.162"
     def cassandra_driver_version = "3.10.2"
     def cdap_version = "6.11.4"
-    // To use a locally built Checker Framework instead, pass -PcfVersion=local; the Checker
-    // Framework plugin then uses $CHECKERFRAMEWORK/checker/dist/checker.jar and checker-qual.jar.
     def checkerframework_version = "4.2.3"
     def classgraph_version = "4.8.192"
     def delta_lake_version = "4.2.0"

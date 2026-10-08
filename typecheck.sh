@@ -62,11 +62,8 @@ export CHECKERFRAMEWORK
 GRADLE_ARGS=(-PcfVersion=local --console=plain --no-configure-on-demand)
 
 # Runs "./gradlew" with the arguments after the first, retrying if the failure looks like a
-# transient network problem, such as HTTP status code 429 or 403, which Maven Central returns when
-# it is throttling a client.  The pattern does not match Gradle's "Could not resolve", so a
-# missing dependency or a Checker Framework crash is not retried.  The first argument is a
-# space-separated list of the delays, in seconds, before successive retries; its last element
-# must be 0, which means "do not retry again".
+# transient network problem.  The first argument is a space-separated list of the delays, in
+# seconds, before successive retries; its last element must be 0, which means "do not retry again".
 gradle_retry() {
   local log status delay
   local -a delays
@@ -82,6 +79,9 @@ gradle_retry() {
       rm -f "$log"
       return 0
     fi
+    # The failure looks like a transient network problem if it is HTTP status code 429 or 403, which
+    # Maven Central returns when it is throttling a client.  The pattern does not match Gradle's
+    # "Could not resolve", so a missing dependency or a Checker Framework crash is not retried.
     if [ "$delay" -eq 0 ] \
       || ! grep -q -E '(status|response) code:? (403|429|5[0-9][0-9])|HTTP Status:? (403|429|5[0-9][0-9])|Connect(ion)? timed out|Connection (reset|refused)|Read timed out|Network is unreachable|UnknownHostException|Temporary failure in name resolution|Premature end of Content-Length|Remote host terminated the handshake' "$log"; then
       rm -f "$log"
@@ -93,8 +93,8 @@ gradle_retry() {
 }
 
 # The init script selects the projects in $GROUP.  Whether a project runs the Checker Framework is
-# known only after the project is configured, so the selection is done in the same Gradle
-# invocation that type-checks, which avoids configuring Beam twice.  It registers a
+# known only after the project is configured, so the init script selects projects in the same Gradle
+# invocation that type-checks them, which avoids configuring Beam twice.  It registers a
 # typecheckCheckerFramework task in the root project.  For GROUP=list, the task prints each selected
 # project's group and compileJava task; otherwise, it depends on each selected project's
 # compileJava task.
