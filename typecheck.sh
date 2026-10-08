@@ -11,7 +11,7 @@
 #
 # The modules are every Java project that applies the Checker Framework Gradle plugin without
 # skipping it.  They are discovered at run time, so modules that are added to Beam are type-checked
-# without changes to this script: 
+# without changes to this script.
 #
 # Environment:
 #   CHECKERFRAMEWORK  a Checker Framework checkout in which `./gradlew assembleForJavac` has run.
