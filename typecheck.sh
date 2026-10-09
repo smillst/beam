@@ -5,7 +5,7 @@
 #
 # Usage: ./typecheck.sh GROUP
 # where GROUP is one of:
-#   part1, part2  type-check one group of modules (one CI job each)
+#   part1, part2  type-check one group of modules
 #   all           type-check every module
 #   list          print each group's compileJava tasks, without running them
 #
@@ -60,7 +60,7 @@ for jar in checker.jar checker-qual.jar; do
 done
 export CHECKERFRAMEWORK
 
-# Every project must be configured to discover which ones run the Checker Framework.
+# Every project must be configured in order to discover which ones run the Checker Framework.
 GRADLE_ARGS=(-PcfVersion=local --console=plain --no-configure-on-demand)
 
 # Runs "./gradlew" with the arguments after the first, retrying if the failure looks like a
@@ -94,14 +94,19 @@ gradle_retry() {
   done
 }
 
-# The init script selects the projects in $GROUP and registers a typecheckCheckerFramework task.
+# The init script registers a typecheckCheckerFramework task that type-checks the projects in
+# $GROUP.
 INIT_SCRIPT="$SCRIPT_DIR/typecheck-init.gradle"
 
 GRADLE_ARGS+=(-I "$INIT_SCRIPT" -PtypecheckGroup="$GROUP" -PtypecheckPart1="$(IFS=,; echo "${PART1[*]}")")
 if [ "$GROUP" = list ]; then
-  gradle_retry "60 300 0" "${GRADLE_ARGS[@]}" -q typecheckCheckerFramework
+  # Print only the list, without Gradle's progress output.
+  GRADLE_ARGS+=(-q)
 else
-  # Dependencies are resolved as the compileJava tasks run.  A retry re-runs only the tasks that did
-  # not succeed, so it retries once:  a longer sequence could exceed the CI job's time limit.
-  gradle_retry "60 0" "${GRADLE_ARGS[@]}" --continue typecheckCheckerFramework
+  # Type-check every module whose dependencies type-check, even after a module fails.
+  GRADLE_ARGS+=(--continue)
 fi
+# Retry once:  a longer sequence could exceed the CI job's time limit.  When type-checking,
+# dependencies are resolved as the compileJava tasks run, and a retry re-runs only the tasks that
+# did not succeed.
+gradle_retry "60 0" "${GRADLE_ARGS[@]}" typecheckCheckerFramework
